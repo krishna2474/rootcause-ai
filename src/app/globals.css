@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+  Paytm-inspired palette (colours only — no Paytm logo or wordmark).
+  navy  #002E6E  primary text / headers
+  sky   #00BAF2  brand accent, primary buttons, icons
+  The app is light-only, like the Paytm app.
+*/
+:root {
+  --navy: #002e6e;
+  --navy-2: #0b3f8a;
+  --sky: #00baf2;
+  --sky-soft: #e5f7fd;
+  --page: #f3f6fa;
+  --card: #ffffff;
+  --ink: #101828;
+  --ink-2: #475467;
+  --ink-3: #98a2b3;
+  --line: #e4e9f0;
+  --ok: #12b76a;
+  --ok-soft: #e7f8ef;
+  --warn: #f79009;
+  --warn-soft: #fef4e6;
+  --bad: #e5484d;
+  --bad-soft: #fdecec;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --font-sans: var(--font-noto), var(--font-noto-deva), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* No visible scrollbars anywhere; areas still scroll with wheel, trackpad and touch. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

@@ -1,0 +1,195 @@
+// Supabase Postgres. DATABASE_URL = pooled (pgbouncer) connection, DIRECT_URL = direct connection for migrations.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum EventType {
+  UPI
+  REFUND
+  SETTLEMENT
+}
+
+enum EventStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+enum Channel {
+  CHAT
+  VOICE
+}
+
+enum IncidentStatus {
+  OPEN
+  APPROVED
+  RESOLVED
+}
+
+enum ActionKind {
+  OPS_TICKET
+  CUSTOMER_MSG
+  CUSTOMER_RESOLVED // "payments are working again" notice, drafted once the fix is verified
+  AUTO_REPLY
+}
+
+enum ActionStatus {
+  DRAFT
+  APPROVED
+  SENT
+  REJECTED
+}
+
+enum Actor {
+  AGENT
+  HUMAN
+  SYSTEM
+}
+
+model User {
+  id            String         @id
+  name          String
+  phone         String
+  language      String         @default("hi") // Sarvam language code prefix: hi, en, ta, ...
+  balance       Int            @default(0) // paise
+  events        PaymentEvent[]
+  complaints    Complaint[]
+  notifications Notification[]
+  messages      ChatMessage[]
+}
+
+model PaymentEvent {
+  id        String      @id @default(cuid())
+  txnId     String      @unique
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  type      EventType
+  bank      String
+  payee     String
+  amount    Int // paise
+  status    EventStatus
+  errorCode String?
+  createdAt DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([bank, status, createdAt])
+}
+
+model Complaint {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  txnId      String?
+  channel    Channel
+  text       String
+  language   String    @default("en")
+  audioUrl   String?
+  incidentId String?
+  incident   Incident? @relation(fields: [incidentId], references: [id])
+  escalatedAt DateTime? // agent couldn't match it to an incident, so a human must reply
+  answeredAt  DateTime? // a human replied
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+model Incident {
+  id            String         @id @default(cuid())
+  title         String
+  rootCause     String
+  bank          String
+  errorCode     String?
+  evidence      Json
+  confidence    Float
+  impactedUsers Int
+  moneyStuck    Int // paise
+  status        IncidentStatus @default(OPEN)
+  createdAt     DateTime       @default(now())
+  approvedAt    DateTime?
+  fixedAt       DateTime? // when the bank/tech fix went live
+  resolvedAt    DateTime?
+  complaints    Complaint[]
+  actions       Action[]
+  notifications Notification[]
+  postmortem    Postmortem?
+}
+
+model Action {
+  id         String       @id @default(cuid())
+  incidentId String
+  incident   Incident     @relation(fields: [incidentId], references: [id])
+  kind       ActionKind
+  title      String
+  draft      String
+  language   String       @default("en")
+  status     ActionStatus @default(DRAFT)
+  approvedBy String?
+  createdAt  DateTime     @default(now())
+  sentAt     DateTime?
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  incidentId String?
+  incident   Incident? @relation(fields: [incidentId], references: [id])
+  title      String
+  message    String
+  language   String    @default("en")
+  kind       String    @default("ALERT") // ALERT (outage warning) | RESOLVED (all clear)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// Help-chat thread on the customer app. Agent replies land here too.
+model ChatMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  role       String // "user" | "agent" | "human"
+  text       String
+  language   String   @default("en")
+  audioUrl   String?
+  incidentId String?
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      Actor
+  action     String
+  incidentId String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Postmortem {
+  id             String   @id @default(cuid())
+  incidentId     String   @unique
+  incident       Incident @relation(fields: [incidentId], references: [id])
+  timeline       Json
+  cause          String
+  impact         String
+  preventionRule String
+  createdAt      DateTime @default(now())
+}
+
+// Single row (id = 1) that drives the demo traffic generator.
+model DemoState {
+  id          Int       @id @default(1)
+  spikeBank   String?
+  spikeCode   String?
+  spikeActive Boolean   @default(false)
+  fixedAt     DateTime?
+  tickLockUntil DateTime? // lease so only one agent tick runs at a time
+  updatedAt   DateTime  @updatedAt
+}

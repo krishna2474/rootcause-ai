@@ -1,0 +1,441 @@
+<title>RootCause AI Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the system map is a stacked set of layers (clients → app → services) joined by labelled connectors */
+:root {
+  --bg: #f3f5f9;
+  --surface: #ffffff;
+  --sunken: #e8ecf3;
+  --fg: #141b2d;
+  --muted: #5a6478;
+  --line: #d3d9e4;
+  --accent: #1f4fd1;
+  --accent-soft: #e2e9fb;
+  --human: #b45309;
+  --human-soft: #fcefdc;
+  --ok: #157347;
+  --ok-soft: #dcf2e6;
+  --ext: #6b3fb8;
+  --ext-soft: #efe7fb;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1320; --surface: #161d2e; --sunken: #1d2539; --fg: #e7ebf3; --muted: #9aa5bb; --line: #2c3650;
+    --accent: #7ea2ff; --accent-soft: #1d2b52; --human: #f3b05a; --human-soft: #3a2a14;
+    --ok: #5fd39a; --ok-soft: #143326; --ext: #b896f5; --ext-soft: #2a1f44; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1320; --surface: #161d2e; --sunken: #1d2539; --fg: #e7ebf3; --muted: #9aa5bb; --line: #2c3650;
+  --accent: #7ea2ff; --accent-soft: #1d2b52; --human: #f3b05a; --human-soft: #3a2a14;
+  --ok: #5fd39a; --ok-soft: #143326; --ext: #b896f5; --ext-soft: #2a1f44; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 24px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+.eyebrow { font: 500 12px var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lead { font-size: 18px; color: var(--muted); max-width: 64ch; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.sec-head { display: flex; flex-direction: column; gap: 6px; }
+.sec-head p { color: var(--muted); max-width: 70ch; }
+
+header { display: flex; flex-direction: column; gap: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; }
+.sw.app { background: var(--accent-soft); border-color: var(--accent); }
+.sw.ext { background: var(--ext-soft); border-color: var(--ext); }
+.sw.hum { background: var(--human-soft); border-color: var(--human); }
+.sw.ok { background: var(--ok-soft); border-color: var(--ok); }
+
+/* System map */
+.map { display: flex; flex-direction: column; align-items: stretch; }
+.layer-label { font: 500 11px var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.row { display: grid; gap: 14px; }
+.row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.box { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.box p { font-size: 13.5px; color: var(--muted); }
+.box .tag { font: 500 11px var(--f-mono); color: var(--muted); }
+.box.ext { border-color: var(--ext); background: var(--ext-soft); }
+.box.ext .tag { color: var(--ext); }
+.box.client { border-color: var(--accent); }
+.box.client .tag { color: var(--accent); }
+.box.sim { border-style: dashed; }
+
+.connector { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0; color: var(--muted); font-size: 12.5px; }
+.connector .arrow { font-family: var(--f-mono); color: var(--accent); font-size: 16px; line-height: 1; }
+
+.app-shell { border: 2px solid var(--accent); border-radius: 14px; background: var(--accent-soft); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.app-shell > .hdr { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px; }
+.app-shell > .hdr h3 { color: var(--accent); }
+.app-shell > .hdr span { font: 500 12px var(--f-mono); color: var(--muted); }
+.routes { display: flex; flex-wrap: wrap; gap: 8px; }
+.route { font: 500 12.5px var(--f-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; }
+.route small { font-family: var(--f-body); color: var(--muted); margin-left: 6px; font-size: 12px; }
+.brain { background: var(--surface); border: 1.5px solid var(--accent); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.tool { font: 12px var(--f-mono); padding: 3px 8px; border-radius: 999px; background: var(--sunken); color: var(--fg); }
+.tool.hum { background: var(--human-soft); color: var(--human); font-weight: 500; }
+.libs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.lib { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.lib code { color: var(--accent); font-weight: 500; }
+.lib p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* Agent loop */
+.loop { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.loop .node { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.loop .node.llm { border-color: var(--ext); }
+.loop .node.sdk { border-color: var(--accent); }
+.loop .node p { font-size: 13px; color: var(--muted); }
+.loop .bi { font-family: var(--f-mono); color: var(--muted); text-align: center; font-size: 12px; line-height: 1.3; }
+.example { background: var(--sunken); border-radius: 10px; padding: 14px 16px; font: 13px/1.75 var(--f-mono); overflow-x: auto; }
+.example .who { color: var(--ext); font-weight: 500; }
+.example .who.sdk { color: var(--accent); }
+
+/* Flow steps */
+.steps { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.step { display: grid; grid-template-columns: 44px minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; padding: 14px 18px; border-top: 1px solid var(--line); align-items: start; }
+.step:first-child { border-top: 0; }
+.step.head { background: var(--sunken); font: 500 11px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-block: 10px; }
+.step .n { font: 800 22px var(--f-display); color: var(--accent); line-height: 1.1; }
+.step.human { background: var(--human-soft); }
+.step.human .n { color: var(--human); }
+.step.done { background: var(--ok-soft); }
+.step.done .n { color: var(--ok); }
+.step h3 { font-size: 15px; }
+.step .what { font-size: 14px; }
+.step .where { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font: 11.5px var(--f-mono); padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+.chip.e { border-color: var(--ext); color: var(--ext); }
+.chip.a { border-color: var(--accent); color: var(--accent); }
+.step .writes { font: 12px var(--f-mono); color: var(--muted); }
+
+/* Sequence */
+.seq-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow-x: auto; }
+.seq { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); min-width: 680px; position: relative; }
+.seq .actor { text-align: center; font: 600 13px var(--f-body); padding: 8px 6px; border-radius: 8px; background: var(--sunken); margin: 0 6px 10px; }
+.seq .actor.h { background: var(--human-soft); color: var(--human); }
+.seq .actor.x { background: var(--ext-soft); color: var(--ext); }
+.msgs { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; position: relative; }
+.lanes { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
+.lanes i { border-left: 1.5px dashed var(--line); margin-left: 50%; }
+.msg { display: grid; grid-template-columns: repeat(5, 1fr); position: relative; min-height: 34px; align-items: center; }
+.msg .bar { position: relative; height: 26px; display: flex; align-items: center; justify-content: center; }
+.msg .bar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px solid var(--accent); }
+.msg .bar.h::before { border-color: var(--human); }
+.msg .bar.ok::before { border-color: var(--ok); }
+.msg .bar span { position: relative; background: var(--surface); padding: 0 8px; font: 11.5px var(--f-mono); color: var(--fg); white-space: nowrap; }
+.msg .bar.r::after, .msg .bar.l::after { position: absolute; top: 50%; transform: translateY(-52%); font: 13px var(--f-mono); color: var(--accent); background: none; }
+.msg .bar.r::after { content: "▶"; right: -2px; }
+.msg .bar.l::after { content: "◀"; left: -2px; }
+.msg .bar.h.r::after, .msg .bar.h.l::after { color: var(--human); }
+.msg .bar.ok.r::after, .msg .bar.ok.l::after { color: var(--ok); }
+
+/* Data model */
+.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.model { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.model h3 { font-family: var(--f-mono); font-size: 14px; font-weight: 500; color: var(--accent); }
+.model p { font-size: 13px; color: var(--muted); margin: 2px 0 8px; }
+.model ul { margin: 0; padding: 0; list-style: none; font: 12px/1.7 var(--f-mono); }
+.model li { display: flex; justify-content: space-between; gap: 10px; border-top: 1px dotted var(--line); }
+.model li span:last-child { color: var(--muted); text-align: right; }
+
+/* Stack table */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; background: var(--sunken); font: 500 11px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td:first-child { color: var(--muted); white-space: nowrap; }
+td strong { font-weight: 600; }
+td.alt { color: var(--muted); font-size: 13px; }
+
+.rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rule { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.rule p { font-size: 13.5px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .row.two, .row.three, .libs, .rules { grid-template-columns: minmax(0, 1fr); }
+  .loop { grid-template-columns: minmax(0, 1fr); }
+  .loop .bi { transform: rotate(90deg); padding: 4px 0; }
+  .step { grid-template-columns: 34px minmax(0, 1fr); }
+  .step > :nth-child(3), .step > :nth-child(4) { grid-column: 2; }
+  .step.head { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Track 3 · Autonomous AI Teammates</span>
+  <h1>RootCause AI architecture</h1>
+  <p class="lead">An agent that spots payment failures before customers complain, finds the shared cause, acts after a human approves, and proves the fix worked. This page shows how the pieces connect so everyone on the team builds against the same picture.</p>
+  <div class="legend">
+    <span><i class="sw app"></i>Our code (Next.js on Vercel)</span>
+    <span><i class="sw ext"></i>External service</span>
+    <span><i class="sw hum"></i>Human approval step</span>
+    <span><i class="sw ok"></i>Outcome check</span>
+  </div>
+</header>
+
+<!-- 1. System map -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">01 · System map</span>
+    <h2>Who talks to what</h2>
+    <p>Everything we write lives in one Next.js app. It talks to three outside services: an LLM, Sarvam for voice and Indian languages, and Supabase for data and live updates.</p>
+  </div>
+
+  <div class="map">
+    <div class="layer-label">Screens</div>
+    <div class="row three">
+      <div class="box client">
+        <span class="tag">/dashboard · laptop</span>
+        <h3>Ops dashboard</h3>
+        <p>Live feed of events and complaints, incident cards with evidence, the Approve button, before/after chart, audit log.</p>
+      </div>
+      <div class="box client">
+        <span class="tag">/app · phone-sized web page</span>
+        <h3>Customer app</h3>
+        <p>Paytm-style home and transactions, the "money is safe" alert, help chat with text or a Hindi voice note.</p>
+      </div>
+      <div class="box sim">
+        <span class="tag">scripts/ · run from terminal</span>
+        <h3>Mock data</h3>
+        <p><code>seed.ts</code> loads normal history. <code>simulate.ts</code> fires a UPI failure spike on one bank during the demo.</p>
+      </div>
+    </div>
+
+    <div class="connector"><span class="arrow">↓</span>HTTP calls to API routes · live updates come back through Supabase Realtime<span class="arrow">↑</span></div>
+
+    <div class="layer-label">Our app · Next.js on Vercel</div>
+    <div class="app-shell">
+      <div class="hdr"><h3>Next.js (App Router, TypeScript)</h3><span>one repo · one deploy</span></div>
+      <div class="routes">
+        <span class="route">/api/events<small>simulator posts payment events</small></span>
+        <span class="route">/api/complaints<small>chat text or voice note from /app</small></span>
+        <span class="route">/api/incidents<small>list, approve, resolve</small></span>
+        <span class="route">/api/agent<small>runs the agent loop</small></span>
+      </div>
+      <div class="brain">
+        <h3>Agent brain · Vercel AI SDK</h3>
+        <p style="font-size:13.5px;color:var(--muted)">Gives the LLM a list of tools, runs whichever tool it picks, sends the result back, and repeats until the job is done. Tools in amber only run after a human clicks Approve.</p>
+        <div class="tools">
+          <span class="tool">watchEvents</span><span class="tool">detectSpike</span><span class="tool">checkTxnStatus</span>
+          <span class="tool">searchComplaints</span><span class="tool">clusterCases</span><span class="tool">createIncident</span>
+          <span class="tool">draftOpsTicket</span><span class="tool">draftCustomerMsg</span><span class="tool hum">sendAfterApproval</span>
+          <span class="tool">matchComplaintToIncident</span><span class="tool">verifyFix</span><span class="tool">writePostmortem</span>
+        </div>
+      </div>
+      <div class="libs">
+        <div class="lib"><code>lib/llm.ts</code><p>The only place we call an LLM. <code>LLM_PROVIDER</code> in .env picks the provider.</p></div>
+        <div class="lib"><code>lib/sarvam.ts</code><p>Speech-to-text, translation and text-to-speech wrappers.</p></div>
+        <div class="lib"><code>lib/db.ts</code><p>Prisma client for reads and writes to Supabase Postgres.</p></div>
+      </div>
+    </div>
+
+    <div class="connector"><span class="arrow">↓</span>API keys from .env · server-side only, never exposed to the browser</div>
+
+    <div class="layer-label">External services</div>
+    <div class="row three">
+      <div class="box ext">
+        <span class="tag">LLM provider · swappable</span>
+        <h3>Paytm Inference / Sarvam / any OpenAI-compatible</h3>
+        <p>Reads the context and decides the next step. We use whichever credits we get on the day.</p>
+      </div>
+      <div class="box ext">
+        <span class="tag">Sarvam AI · REST</span>
+        <h3>Voice and Indian languages</h3>
+        <p>Turns a Hindi voice note into text, translates replies, and can read a reply back as audio.</p>
+      </div>
+      <div class="box ext">
+        <span class="tag">Supabase · cloud</span>
+        <h3>Postgres + Realtime + Storage</h3>
+        <p>Postgres holds all data. Realtime pushes row changes to both screens. Storage keeps voice notes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Agent loop -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">02 · The agent loop</span>
+    <h2>The LLM decides, the AI SDK carries it out</h2>
+    <p>On its own an LLM can only write text. The AI SDK turns its decisions into real actions by running our TypeScript tool functions and feeding the results back.</p>
+  </div>
+  <div class="loop">
+    <div class="node llm"><h3>LLM</h3><p>The thinker. Reads the situation and picks the next tool, or writes the final answer.</p></div>
+    <div class="bi">picks tool →<br>← gets result</div>
+    <div class="node sdk"><h3>Vercel AI SDK</h3><p>The manager. Runs the tool, passes back the output, loops until done. An open-source npm package, separate from Vercel hosting.</p></div>
+    <div class="bi">calls →<br>← returns</div>
+    <div class="node"><h3>Our tools</h3><p>Plain TypeScript functions that read and write Supabase through Prisma.</p></div>
+  </div>
+  <div class="example">
+<span class="who">LLM</span>  "Failures look high. Check txn TXN8812."<br>
+<span class="who sdk">SDK</span>  runs checkTxnStatus("TXN8812") → { status: "FAILED", bank: "HDFC", errorCode: "U30" }<br>
+<span class="who">LLM</span>  "Find similar failures in the last 30 minutes."<br>
+<span class="who sdk">SDK</span>  runs clusterCases({ bank: "HDFC", errorCode: "U30" }) → 38 txns, ₹1,42,300 stuck<br>
+<span class="who">LLM</span>  "Create an incident and draft a Hindi alert for the 38 users."<br>
+<span class="who sdk">SDK</span>  runs createIncident(…) and draftCustomerMsg(…) → waits for Approve
+  </div>
+</section>
+
+<!-- 3. End-to-end flow -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">03 · End-to-end flow</span>
+    <h2>Seven steps, from first failure to post-mortem</h2>
+    <p>Each row shows what happens, which parts of the system do the work, and what gets saved. This is also the order of the demo.</p>
+  </div>
+  <div class="steps">
+    <div class="step head"><span>#</span><span>Step</span><span>What happens</span><span>Saved to</span></div>
+    <div class="step">
+      <span class="n">1</span>
+      <div><h3>Watch</h3><div class="where"><span class="chip">simulate.ts</span><span class="chip a">/api/events</span></div></div>
+      <p class="what">Payment events (UPI, refunds, settlements) stream in and the agent watches them.</p>
+      <span class="writes">PaymentEvent</span>
+    </div>
+    <div class="step">
+      <span class="n">2</span>
+      <div><h3>Detect</h3><div class="where"><span class="chip a">detectSpike</span></div></div>
+      <p class="what">Failure rate jumps, for example UPI failures up 5x on HDFC since 2:10 PM with one error code.</p>
+      <span class="writes">—</span>
+    </div>
+    <div class="step">
+      <span class="n">3</span>
+      <div><h3>Diagnose</h3><div class="where"><span class="chip a">clusterCases</span><span class="chip a">createIncident</span><span class="chip e">LLM</span></div></div>
+      <p class="what">The agent groups affected transactions and complaints, names the likely cause, and builds an incident card with evidence, impacted users, money stuck and a confidence score.</p>
+      <span class="writes">Incident · AuditLog</span>
+    </div>
+    <div class="step human">
+      <span class="n">4</span>
+      <div><h3>Act, after approval</h3><div class="where"><span class="chip a">draftOpsTicket</span><span class="chip a">draftCustomerMsg</span><span class="chip e">Sarvam</span></div></div>
+      <p class="what">The agent drafts an ops ticket and a customer alert in the customer's language. Nothing is sent until ops clicks Approve. Then the alert reaches the phone instantly.</p>
+      <span class="writes">Action · Notification · AuditLog</span>
+    </div>
+    <div class="step">
+      <span class="n">5</span>
+      <div><h3>Answer complaints</h3><div class="where"><span class="chip a">/api/complaints</span><span class="chip e">Sarvam STT</span><span class="chip a">matchComplaintToIncident</span></div></div>
+      <p class="what">A customer sends text or a Hindi voice note. Sarvam turns it into text, the agent matches it to the open incident, and replies right away with the real reason and an ETA. New issues go to a human.</p>
+      <span class="writes">Complaint · Storage (audio)</span>
+    </div>
+    <div class="step done">
+      <span class="n">6</span>
+      <div><h3>Verify</h3><div class="where"><span class="chip a">verifyFix</span></div></div>
+      <p class="what">After the fix, the agent compares failures and complaints before and after. When they drop, it marks the incident Resolved and the chart shows the drop.</p>
+      <span class="writes">Incident.status = RESOLVED</span>
+    </div>
+    <div class="step">
+      <span class="n">7</span>
+      <div><h3>Learn</h3><div class="where"><span class="chip a">writePostmortem</span><span class="chip e">LLM</span></div></div>
+      <p class="what">The agent writes the timeline, cause and impact, and suggests a prevention rule for next time.</p>
+      <span class="writes">Postmortem</span>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Approve sequence -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">04 · The demo moment</span>
+    <h2>Ops clicks Approve, the phone updates</h2>
+    <p>No polling code. The phone page subscribes to its <code>Notification</code> rows in Supabase, so the alert appears within about a second of the database write.</p>
+  </div>
+  <div class="seq-wrap">
+    <div class="seq">
+      <div class="actor h">Ops (dashboard)</div>
+      <div class="actor">/api/incidents</div>
+      <div class="actor">Agent + tools</div>
+      <div class="actor x">Supabase</div>
+      <div class="actor">Customer (/app)</div>
+      <div class="msgs">
+        <div class="lanes"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="msg"><div class="bar h r" style="grid-column:1/3;margin-left:50%;margin-right:-50%"><span>click Approve</span></div></div>
+        <div class="msg"><div class="bar r" style="grid-column:2/4;margin-left:50%;margin-right:-50%"><span>sendAfterApproval()</span></div></div>
+        <div class="msg"><div class="bar r" style="grid-column:3/5;margin-left:50%;margin-right:-50%"><span>insert Notification + AuditLog</span></div></div>
+        <div class="msg"><div class="bar ok r" style="grid-column:4/6;margin-left:50%;margin-right:-50%"><span>Realtime push</span></div></div>
+        <div class="msg"><div class="bar ok l" style="grid-column:1/5;margin-left:50%;margin-right:-50%"><span>Realtime: incident APPROVED → card updates</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Data model -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">05 · Data model (first draft)</span>
+    <h2>Tables in Supabase Postgres</h2>
+    <p>Defined in <code>prisma/schema.prisma</code>. Mock data only. Phone and account numbers are masked in the UI.</p>
+  </div>
+  <div class="models">
+    <div class="model"><h3>PaymentEvent</h3><p>Every UPI, refund or settlement attempt.</p>
+      <ul><li><span>txnId, userId</span><span>string</span></li><li><span>type</span><span>UPI · REFUND · SETTLEMENT</span></li><li><span>bank, amount</span><span>string, int</span></li><li><span>status, errorCode</span><span>string</span></li><li><span>createdAt</span><span>datetime</span></li></ul></div>
+    <div class="model"><h3>Complaint</h3><p>What the customer told us.</p>
+      <ul><li><span>userId, txnId?</span><span>string</span></li><li><span>channel</span><span>CHAT · VOICE</span></li><li><span>text, language</span><span>string</span></li><li><span>audioUrl?</span><span>Storage URL</span></li><li><span>incidentId?</span><span>link</span></li></ul></div>
+    <div class="model"><h3>Incident</h3><p>One shared root cause.</p>
+      <ul><li><span>title, rootCause</span><span>string</span></li><li><span>evidence</span><span>json</span></li><li><span>confidence</span><span>0–1</span></li><li><span>impactedUsers, moneyStuck</span><span>int</span></li><li><span>status</span><span>OPEN · APPROVED · RESOLVED</span></li></ul></div>
+    <div class="model"><h3>Action</h3><p>Something the agent wants to do.</p>
+      <ul><li><span>incidentId</span><span>link</span></li><li><span>kind</span><span>OPS_TICKET · CUSTOMER_MSG · AUTO_REPLY</span></li><li><span>draft</span><span>text</span></li><li><span>status</span><span>DRAFT · APPROVED · SENT</span></li><li><span>approvedBy</span><span>string</span></li></ul></div>
+    <div class="model"><h3>Notification</h3><p>What shows up on the customer's phone.</p>
+      <ul><li><span>userId, incidentId</span><span>link</span></li><li><span>message, language</span><span>string</span></li><li><span>readAt</span><span>datetime?</span></li></ul></div>
+    <div class="model"><h3>AuditLog · Postmortem</h3><p>Who did what, and what we learned.</p>
+      <ul><li><span>actor</span><span>AGENT · HUMAN</span></li><li><span>action, payload</span><span>string, json</span></li><li><span>timeline, cause, impact</span><span>text</span></li><li><span>preventionRule</span><span>text</span></li></ul></div>
+  </div>
+</section>
+
+<!-- 6. Stack -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">06 · Tech stack</span>
+    <h2>What we use, and why</h2>
+    <p>All TypeScript. The app is hosted on Vercel and the database on Supabase.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Choice</th><th>Why</th><th>Alternatives</th></tr></thead>
+      <tbody>
+        <tr><td>App</td><td><strong>Next.js + TypeScript</strong></td><td>UI and API in one app, and the team already knows it</td><td class="alt">NestJS + Vite React</td></tr>
+        <tr><td>Agent brain</td><td><strong>Vercel AI SDK</strong></td><td>Simple tool calling, works with many providers</td><td class="alt">OpenAI SDK, LangChain.js, Mastra</td></tr>
+        <tr><td>LLM</td><td><strong>Swappable via lib/llm.ts</strong></td><td>Credits on the day are unknown</td><td class="alt">Groq, Gemini, Claude</td></tr>
+        <tr><td>Voice + languages</td><td><strong>Sarvam AI</strong></td><td>Built for Hindi and other Indian languages</td><td class="alt">Bhashini, Google STT</td></tr>
+        <tr><td>Database</td><td><strong>Supabase Postgres + Prisma</strong></td><td>Cloud Postgres with Realtime and Storage built in</td><td class="alt">Neon, Drizzle ORM</td></tr>
+        <tr><td>Live updates</td><td><strong>Supabase Realtime</strong></td><td>Approve on laptop, phone updates instantly</td><td class="alt">Polling (fallback), SSE</td></tr>
+        <tr><td>UI + charts</td><td><strong>Tailwind, shadcn/ui, Recharts</strong></td><td>Polished screens fast, easy before/after chart</td><td class="alt">Mantine, Chart.js</td></tr>
+        <tr><td>Hosting</td><td><strong>Vercel</strong></td><td>Free, deploys from git in one click</td><td class="alt">Netlify, run locally</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 7. Rules -->
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">07 · Team rules</span>
+    <h2>Four things everyone sticks to</h2>
+  </div>
+  <div class="rules">
+    <div class="rule"><h3>One door to the LLM</h3><p>Every model call goes through <code>lib/llm.ts</code>. Never hardcode a provider.</p></div>
+    <div class="rule"><h3>Human approves every send</h3><p>Customer messages and tickets wait for Approve, and every action lands in <code>AuditLog</code>.</p></div>
+    <div class="rule"><h3>Mock data only</h3><p>No real customer data. Mask phone and account numbers on screen.</p></div>
+    <div class="rule"><h3>Demo first</h3><p>We have about 8 hours and a 2-minute demo. If a feature isn't in the flow above, skip it.</p></div>
+  </div>
+</section>
+
+</div>

@@ -1,0 +1,54 @@
+{
+  "name": "rootcause-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:seed": "tsx scripts/seed.ts",
+    "simulate": "tsx scripts/simulate.ts",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "db:embedded-sql": "tsx scripts/embedded-schema.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^1.0.59",
+    "@electric-sql/pglite": "0.5.13",
+    "@electric-sql/pglite-socket": "^0.2.16",
+    "@prisma/client": "^6.19.3",
+    "@supabase/supabase-js": "^2.118.0",
+    "ai": "^5.0.282",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.64.0",
+    "next": "15.5.28",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^18.0.9",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.28",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
+  }
+}
