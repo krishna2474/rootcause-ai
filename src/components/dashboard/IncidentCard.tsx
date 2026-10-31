@@ -337,3 +337,33 @@ export function NoIncident({ payments, spikeActive, agentOn }: { payments: numbe
     </Card>
   );
 }
+
+/** A resolved, fully decided incident folds into this bar so live payments get the space back. Click to reopen. */
+export function ResolvedBar({ incident: inc, open, onToggle }: { incident: Incident; open: boolean; onToggle: () => void }) {
+  const from = inc.outageStartedAt ?? inc.createdAt;
+  const minutes = inc.resolvedAt ? Math.max(1, Math.round((new Date(inc.resolvedAt).getTime() - new Date(from).getTime()) / 60_000)) : null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-ok/30 bg-gradient-to-r from-ok-soft to-card px-4 py-3 text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-ok/60 focus-visible:outline-2 focus-visible:outline-sky"
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ok text-white">
+        <CircleCheckBig className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-bold text-navy">Resolved · {inc.title}</span>
+        <span className="block truncate text-xs text-ink-2">
+          {inc.bank} · <span className="font-mono">{inc.errorCode}</span>
+          {minutes && <> · fixed in {minutes} min</>}
+          {inc.postmortem && <> · post-mortem ready</>}
+        </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#067647]">
+        {open ? "Hide" : "View incident"}
+        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+      </span>
+    </button>
+  );
+}

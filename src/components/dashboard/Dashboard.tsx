@@ -8,7 +8,7 @@ import { TopBar } from "./TopBar";
 import type { ScenarioId } from "@/lib/scenarios";
 import { DemoControls, type DemoAction } from "./DemoControls";
 import { KpiRow } from "./KpiRow";
-import { IncidentCard, NoIncident } from "./IncidentCard";
+import { IncidentCard, NoIncident, ResolvedBar } from "./IncidentCard";
 import { FailureChart } from "./FailureChart";
 import { EscalationQueue } from "./EscalationQueue";
 import { PaymentFeed } from "./PaymentFeed";
@@ -102,6 +102,10 @@ export function Dashboard({ embed = false }: { embed?: boolean }) {
   );
 
   const incident = data?.incidents[0];
+  // Resolved with nothing left to approve: fold the card away and give the space back to live payments.
+  const settled = incident?.status === "RESOLVED" && !incident.actions.some((a) => a.status === "DRAFT");
+  const [reopened, setReopened] = useState<string | null>(null);
+  const showCard = incident && (!settled || reopened === incident.id);
 
   return (
     // Embed (stage view): the page itself never scrolls, so the demo controls and KPIs stay on screen
@@ -128,16 +132,16 @@ export function Dashboard({ embed = false }: { embed?: boolean }) {
               <div className="grid min-h-0 flex-1 gap-3 min-[720px]:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl [&>*]:shrink-0">
                   <EscalationQueue items={data.escalations} onReply={reply} />
-                  {incident ? (
-                    <IncidentCard key={incident.id} incident={incident} onDecide={decide} />
-                  ) : (
-                    <NoIncident payments={data.stats.paymentsLast10m} spikeActive={data.demo.spikeActive} agentOn={agent.on} />
+                  {incident && settled && (
+                    <ResolvedBar incident={incident} open={reopened === incident.id} onToggle={() => setReopened((id) => (id === incident.id ? null : incident.id))} />
                   )}
-                  {!incident && <PaymentFeed events={data.events} />}
+                  {showCard && <IncidentCard key={incident.id} incident={incident} onDecide={decide} />}
+                  {!incident && <NoIncident payments={data.stats.paymentsLast10m} spikeActive={data.demo.spikeActive} agentOn={agent.on} />}
+                  {(!incident || settled) && <PaymentFeed events={data.events} />}
                 </div>
                 <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl [&>*]:shrink-0">
                   <FailureChart chart={data.chart} incident={incident} events={data.events} compact />
-                  <RailTabs data={data} payments={Boolean(incident)} />
+                  <RailTabs data={data} payments={Boolean(incident) && !settled} />
                 </div>
               </div>
             ) : (
