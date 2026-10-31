@@ -2,7 +2,7 @@ import { generateObject, generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { generateTraffic } from "@/lib/demo";
-import { rupees } from "@/lib/format";
+import { humanizeTimes, istTime, rupees } from "@/lib/format";
 import { getModel } from "@/lib/llm";
 import { scenarioFor } from "@/lib/scenarios";
 import { simulateComplaintWave } from "./complaints";
@@ -18,7 +18,8 @@ Rules:
 - Then call createIncident once, with a short title, a plain-English root cause, a confidence between 0 and 1, and 3-5 evidence points that cite numbers.
 - Then call draftOpsTicket (addressed to the bank's operations team) and draftCustomerMsg (short, calm, under 45 words, Hindi version in Devanagari). Say money is safe and what happens to it, matching the error: failed debits auto-reverse within 2 hours; if the bank was unreachable no money was debited; delayed refunds are credited automatically once the bank recovers.
 - You cannot send anything. A human approves every message.
-- Amounts are Indian rupees. Be factual and do not invent numbers.`;
+- Amounts are Indian rupees. Be factual and do not invent numbers.
+- Write times the way the tools give them (e.g. "31 Oct, 2:41 PM IST"); never write raw timestamps.`;
 
 // Tools are bound to the spike under investigation, so the model can't drift to a wrong bank,
 // error code or incident id.
@@ -35,7 +36,7 @@ function agentTools(spike: T.Spike) {
       execute: async ({ sinceMinutes }) => {
         const r = await T.clusterCases({ bank: spike.bank, errorCode: spike.errorCode, sinceMinutes });
         await T.log(`Grouped ${r.failedTxns} failed ${spike.bank} payments (${spike.errorCode}) across ${r.impactedUsers} customers`);
-        return r;
+        return humanizeTimes(r);
       },
     }),
     checkTxnStatus: tool({
@@ -44,7 +45,7 @@ function agentTools(spike: T.Spike) {
       execute: async ({ txnId }) => {
         const r = await T.checkTxnStatus(txnId);
         await T.log(`Checked transaction ${txnId}: ${r.found ? `${r.status} ${r.errorCode ?? ""}`.trim() : "not found"}`);
-        return r;
+        return humanizeTimes(r);
       },
     }),
     searchComplaints: tool({
@@ -53,7 +54,7 @@ function agentTools(spike: T.Spike) {
       execute: async (input) => {
         const r = await T.searchComplaints(input);
         await T.log(`Read ${r.length} recent customer complaints`);
-        return r;
+        return humanizeTimes(r);
       },
     }),
     createIncident: tool({
@@ -93,7 +94,7 @@ async function investigateWithLLM(spike: T.Spike) {
   await generateText({
     model,
     system: SYSTEM,
-    prompt: `Spike detected: ${spike.bank} ${scenarioFor(spike.bank, spike.errorCode)?.noun ?? "payments"} failing with error ${spike.errorCode} (${T.ERROR_MEANING(spike.errorCode)}). ${spike.failures} of ${spike.total} payments failed in the last 10 minutes (${T.pct(spike.failureRate)} vs ${T.pct(spike.baselineRate)} normally, ${spike.multiplier}x). First failure at ${spike.firstSeen}. Investigate and prepare the incident and drafts.`,
+    prompt: `Spike detected: ${spike.bank} ${scenarioFor(spike.bank, spike.errorCode)?.noun ?? "payments"} failing with error ${spike.errorCode} (${T.ERROR_MEANING(spike.errorCode)}). ${spike.failures} of ${spike.total} payments failed in the last 10 minutes (${T.pct(spike.failureRate)} vs ${T.pct(spike.baselineRate)} normally, ${spike.multiplier}x). First failure at ${istTime(spike.firstSeen)}. Investigate and prepare the incident and drafts.`,
     tools: agentTools(spike),
     stopWhen: stepCountIs(12),
     abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS),
@@ -143,7 +144,7 @@ async function scriptedDrafts(incidentId: string, spike: T.Spike, kinds: ("OPS_T
     await T.draftOpsTicket({
       incidentId,
       title: `[P1] ${sc?.scripted.title ?? `${spike.bank} failures (${spike.errorCode})`}`,
-      body: `Hi ${spike.bank} Ops,\n\nSince ${new Date(c.firstFailure ?? Date.now()).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata" })} we are seeing ${c.failedTxns} failed ${sc?.noun ?? "payments"} with ${spike.errorCode} (${c.errorMeaning}) across ${c.impactedUsers} customers, ${c.moneyStuck} in value. Other banks are normal.\n\nSample txn IDs: ${c.sampleTxnIds.join(", ")}\n\n${sc?.scripted.opsAsk ?? "Please investigate and confirm when it is fixed."}\n\n- RootCause AI, on behalf of Payments Ops`,
+      body: `Hi ${spike.bank} Ops,\n\nSince ${istTime(c.firstFailure ?? new Date())} we are seeing ${c.failedTxns} failed ${sc?.noun ?? "payments"} with ${spike.errorCode} (${c.errorMeaning}) across ${c.impactedUsers} customers, ${c.moneyStuck} in value. Other banks are normal.\n\nSample txn IDs: ${c.sampleTxnIds.join(", ")}\n\n${sc?.scripted.opsAsk ?? "Please investigate and confirm when it is fixed."}\n\n- RootCause AI, on behalf of Payments Ops`,
     });
   }
   if (kinds.includes("CUSTOMER_MSG")) {
