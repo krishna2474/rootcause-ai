@@ -66,6 +66,9 @@ const en = {
   successTitle: "Payment successful",
   paidTo: "Paid to {payee} from {bank}",
   backHome: "Back to home",
+  blocked: "{bank} is facing an outage right now. Pay from another account so your payment doesn't fail.",
+  useAnother: "Use another account",
+  outage: "Outage",
   pointCamera: "Point your camera at any UPI QR code",
   demoScan: "Demo: scan Sharma Kirana Store",
 };
@@ -132,6 +135,9 @@ const hi: typeof en = {
   successTitle: "भुगतान सफल",
   paidTo: "{bank} से {payee} को भुगतान किया गया",
   backHome: "होम पर वापस",
+  blocked: "{bank} में अभी समस्या चल रही है। भुगतान विफल न हो, इसलिए किसी दूसरे खाते से भुगतान करें।",
+  useAnother: "दूसरा खाता चुनें",
+  outage: "समस्या",
   pointCamera: "किसी भी UPI QR कोड पर कैमरा रखें",
   demoScan: "डेमो: Sharma Kirana Store को स्कैन करें",
 };

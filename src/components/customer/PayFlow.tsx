@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BadgeCheck, Check, ChevronRight, Delete, Info, Landmark, Loader2, ShieldCheck, X, Zap } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Ban, Check, ChevronRight, Delete, Info, Landmark, Loader2, ShieldCheck, X, Zap } from "lucide-react";
 import type { CustomerData } from "@/lib/queries";
 import { rupees, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,10 @@ export function PayFlow({ data, start, onExit, onHelp }: { data: CustomerData; s
   const latest = data.notifications.find((n) => n.active && n.kind === "ALERT" && n.affectsPayments);
   // The warning only applies to the bank with the incident; another bank is unaffected.
   const alert = latest && (!latest.bank || latest.bank === account.bank) ? latest : undefined;
+  // Prevention: once customers have been told a bank's debits are failing, don't let them start a payment that will
+  // fail. Switching to an unaffected account lets it through.
+  const blocked = Boolean(alert);
+  const outageBank = latest?.bank ?? null;
   const [outcome, setOutcome] = useState<"SUCCESS" | "FAILED" | null>(null);
   const failed = outcome === "FAILED";
   const paise = Math.round((Number(amount) || 0) * 100);
@@ -149,8 +153,9 @@ export function PayFlow({ data, start, onExit, onHelp }: { data: CustomerData; s
                         <Landmark className="size-5" aria-hidden />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-semibold text-navy">
+                        <span className="flex items-center gap-1.5 text-[14px] font-semibold text-navy">
                           {a.bank} ••{a.last4}
+                          {a.bank === outageBank && <span className="rounded-full bg-bad-soft px-1.5 text-[10px] font-bold text-bad">{t("outage")}</span>}
                         </span>
                         {on && <span className="tabular block text-[12px] text-ink-3">{t("balance")} {rupees(data.user.balance)}</span>}
                       </span>
@@ -164,17 +169,43 @@ export function PayFlow({ data, start, onExit, onHelp }: { data: CustomerData; s
             </ul>
           </section>
 
-          <button
-            type="button"
-            disabled={paise <= 0}
-            onClick={() => {
-              setPin("");
-              setStep("pin");
-            }}
-            className="mt-auto inline-flex h-12 items-center justify-center gap-1 rounded-full bg-sky text-[15px] font-bold text-white disabled:opacity-40 active:scale-[.99]"
-          >
-            {t("proceed")} {paise > 0 && rupees(paise)} <ChevronRight className="size-5" aria-hidden />
-          </button>
+          <div className="mt-auto flex flex-col gap-2">
+            {blocked && (
+              <div role="status" className="flex items-start gap-2.5 rounded-2xl bg-bad-soft px-3.5 py-3 ring-1 ring-bad/20">
+                <Ban className="mt-0.5 size-4 shrink-0 text-bad" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] leading-snug text-[#b42318]">{t("blocked", { bank: account.bank })}</p>
+                  <button type="button" onClick={() => setPicking(true)} className="mt-1.5 text-[12.5px] font-bold text-navy underline underline-offset-2">
+                    {t("useAnother")}
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* The wrapper takes the hover so the tooltip still shows over a disabled button. */}
+            <div className="group relative">
+              <button
+                type="button"
+                disabled={paise <= 0 || blocked}
+                aria-describedby={blocked ? "pay-blocked" : undefined}
+                onClick={() => {
+                  setPin("");
+                  setStep("pin");
+                }}
+                className="inline-flex h-12 w-full items-center justify-center gap-1 rounded-full bg-sky text-[15px] font-bold text-white active:scale-[.99] disabled:bg-line disabled:text-ink-3 disabled:active:scale-100"
+              >
+                {t("proceed")} {paise > 0 && rupees(paise)} <ChevronRight className="size-5" aria-hidden />
+              </button>
+              {blocked && (
+                <span
+                  id="pay-blocked"
+                  role="tooltip"
+                  className="pointer-events-none absolute inset-x-2 bottom-[calc(100%+8px)] rounded-xl bg-ink px-3 py-2 text-center text-[12px] leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+                >
+                  {t("blocked", { bank: account.bank })}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
